@@ -1,0 +1,101 @@
+# Build com o xk6 via container:
+# https://github.com/grafana/xk6#docker
+
+# Releases do k6
+# https://github.com/grafana/k6/releases
+
+# Extensão do k6 para MCP:
+# https://github.com/grafana/xk6-mcp
+
+# Extensão JavaScript para geração do report HTML:
+# https://code.benco.io/k6-reporter/
+
+# Imagem utilizada: renatogroffe/dotnet9-consoleapp-mcp-fakedata
+# Repositorio com o MCP Server testado neste pipeline:
+# https://github.com/renatogroffe/dotnet9-consoleapp-mcp-fakedata
+
+trigger:
+- main
+
+variables:
+  loadTestsScript: 'mcp-fakedata_test.js'
+  htmtReportK6: 'results-report.html'
+  testsDirectory: './tests'
+  markdownFolder: 'dist'
+  pathMarkdownResults: '/tests/dist'
+  markdownReportK6: 'results-report.html.md'
+
+  # Agent VM image name
+  vmImageName: 'ubuntu-latest'
+
+  # Versoes/repo das ferramentas do k6
+  xk6Version: 'v1.5.0'
+  xk6McpRepo: 'github.com/dgzlopes/xk6-mcp'
+  xk6McpVersion: 'v0.0.3'
+
+  # Parametros para execucao dos testes (usuarios simultaneos + iteracoes)
+  concurrentUsers: '1'
+  iterations: '1'
+
+stages:
+- stage: Tests
+  displayName: Tests stage
+  jobs:
+  - job: Tests
+    displayName: Tests
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - script: |
+        cd $(testsDirectory)
+        docker run --rm -u "$(id -u):$(id -g)" -v "${PWD}:/xk6" grafana/xk6 build $(xk6Version) \
+          --with $(xk6McpRepo)@$(xk6McpVersion)
+      displayName: Gerar o executável do k6 com suporte a MCP via container do xk6
+    - script: |
+        docker images
+        echo ''
+        docker ps -a
+      displayName: Exibir imagens e containers apos build do k6
+    - script: |
+         cd $(testsDirectory)
+         ./k6
+      displayName: Testar executável do k6
+    - script: |
+         cd $(testsDirectory)
+         pwd
+         ls
+         ./k6 run $(loadTestsScript) --vus $(concurrentUsers) --iterations $(iterations)
+      displayName: Executar script de testes do k6
+    - script: |
+        npm install @wcj/html-to-markdown-cli
+      condition: always()
+      displayName: Instalar package npm para conversao de arquivos HTML para Markdown
+    - script: |
+        cd $(testsDirectory)
+        npx @wcj/html-to-markdown-cli $(htmtReportK6)
+      condition: always()
+      displayName: Converter arquivo HTML de resultados para Markdown
+    - script: |
+        cd $(testsDirectory)
+        pwd
+        echo ' '
+        echo '** Arquivos/diretórios após a execução dos testes:'
+        ls -l
+        echo ' '
+        pwd
+        echo ' '
+        cd $(markdownFolder)
+        ls -l
+      condition: always()
+      displayName: Exibir arquivos gerados apos execucao dos testes
+    - task: PublishHtmlReport@1
+      condition: always()
+      inputs:
+        reportDir: $(testsDirectory)/$(htmtReportK6)
+      displayName: Publicar relatorio com os resultados dos testes
+    - task: PublishMarkdownReports@1
+      condition: always()
+      inputs:
+        contentPath: '$(Build.SourcesDirectory)/$(pathMarkdownResults)'
+        indexFile: '$(markdownReportK6)'
+      displayName: Publicar resultado no formato Markdown
