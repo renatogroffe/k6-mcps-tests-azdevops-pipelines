@@ -20,3 +20,7 @@ Relatório HTML com resultados do k6 - Detalhes da Execução:
 Relatório HTML com resultados do k6 - Validações/Checks:
 
 ![Relatório HTML do k6 - parte 3](img/k6-pipeline-04.png)
+
+Resultados no formato Markdown:
+
+![Relatório Markdown com resultados do k6](img/k6-pipeline-05.png)
