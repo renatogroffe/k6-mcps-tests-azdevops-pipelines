@@ -47,6 +47,11 @@ stages:
       vmImage: $(vmImageName)
     steps:
     - script: |
+        docker images
+        echo ''
+        docker ps -a
+      displayName: Exibir imagens e containers antes do build do k6
+    - script: |
         cd $(testsDirectory)
         docker run --rm -u "$(id -u):$(id -g)" -v "${PWD}:/xk6" grafana/xk6 build $(xk6Version) \
           --with $(xk6McpRepo)@$(xk6McpVersion)
@@ -66,6 +71,12 @@ stages:
          ls
          ./k6 run $(loadTestsScript) --vus $(concurrentUsers) --iterations $(iterations)
       displayName: Executar script de testes do k6
+    - script: |
+        docker images
+        echo ''
+        docker ps -a
+      condition: always()
+      displayName: Exibir imagens e containers apos execucao do k6
     - script: |
         npm install @wcj/html-to-markdown-cli
       condition: always()
